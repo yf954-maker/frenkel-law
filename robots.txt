@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+
+# Google
+User-agent: Googlebot
+Allow: /
+
+# Bing
+User-agent: Bingbot
+Allow: /
+
+Sitemap: https://sites.google.com/alaw.info/adv-itzhak-frenkel/sitemap.xml
