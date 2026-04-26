@@ -2442,39 +2442,19 @@ window.addEventListener('scroll', () => {
 
 /* ═══ PREMIUM CHATBOT ═══ */
 
-/* ══════════════════════════════════
-   AI CHATBOT — Claude API
-══════════════════════════════════ */
-const SYSTEM_PROMPT = `אתה עוזר AI מקצועי ומנוסה של משרד "יצחק פרנקל עו\u05f4ד" המתמחה במיסוי מקרקעין בישראל.
 
-פרטי המשרד:
-- שם: יצחק פרנקל, עורך דין
-- כתובת: נהר הירדן 1, מרכז מסחרי לב הרמה, קומה 2, בית שמש
-- טלפון: 02-595-4954
-- מייל: yf954@alaw.info
-- שעות: א-ה 09:00-17:00 | שישי ושבת סגור
-- תחומי התמחות: מס שבח, מס רכישה, היטל השבחה, עררים ושומות, ליווי עסקאות מקרקעין, תמ"א ופינוי בינוי
-
-הנחיות:
-1. ענה תמיד בעברית, בטון מקצועי אך ידידותי
-2. תן מידע מועיל וספציפי על דיני מיסוי מקרקעין בישראל
-3. בסוף כל תשובה, אם רלוונטי, המלץ לפנות לייעוץ אישי עם המשרד
-4. תשובות קצרות וברורות - 3-6 משפטים
-5. השתמש בנקודות/bullet points כשיש רשימות
-6. הדגש תמיד: המידע הוא כללי ואינו ייעוץ משפטי`;
-
-const QUICK_QUESTIONS = [
-  { icon: '🏛️', text: 'מה זה מס שבח?' },
-  { icon: '🔑', text: 'כמה מס רכישה על דירה ראשונה?' },
-  { icon: '✅', text: 'האם מגיע לי פטור ממס שבח?' },
-  { icon: '📋', text: 'מה זה היטל השבחה?' },
-  { icon: '⚖️', text: 'איך מערערים על שומת מס?' },
-  { icon: '📞', text: 'איך יוצרים קשר עם המשרד?' },
+const QUICK_Q = [
+  { icon:'🏛️', q:'מה זה מס שבח?' },
+  { icon:'🔑', q:'כמה מס רכישה על דירה ראשונה?' },
+  { icon:'✅', q:'האם מגיע לי פטור ממס שבח?' },
+  { icon:'📋', q:'מה זה היטל השבחה?' },
+  { icon:'⚖️', q:'איך מערערים על שומת מס?' },
+  { icon:'📞', q:'איך יוצרים קשר?' },
 ];
 
-let chatOpen = false;
-let chatHistory = [];  // { role, content }
-let isStreaming = false;
+let chatOpen   = false;
+let chatHist   = [];
+let chatBusy   = false;
 
 function toggleChat() {
   chatOpen = !chatOpen;
@@ -2482,162 +2462,113 @@ function toggleChat() {
   document.querySelector('.cbadge').style.display = 'none';
   if (chatOpen && !document.getElementById('chatMsgs').children.length) {
     setTimeout(() => {
-      addBotMsg('שלום! אני העוזר החכם של משרד יצחק פרנקל עו"ד.\n\nאני יכול לענות על כל שאלה בנושא מיסוי מקרקעין — מס שבח, מס רכישה, היטל השבחה ועוד. במה אוכל לעזור?');
-      setTimeout(showQuickQuestions, 600);
-    }, 400);
+      addBotMsg('שלום! 👋 אני העוזר החכם של משרד יצחק פרנקל עו"ד.\n\nאני יכול לענות על כל שאלה בנושא מיסוי מקרקעין — מס שבח, מס רכישה, היטל השבחה ועוד.\n\nבמה אוכל לעזור?');
+      setTimeout(showQuickQ, 700);
+    }, 350);
   }
 }
 document.getElementById('chatBtn').addEventListener('click', toggleChat);
 
-function showQuickQuestions() {
+function showQuickQ() {
   const c = document.getElementById('chatOpts');
   c.innerHTML = '';
-  QUICK_QUESTIONS.forEach((q, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'copt';
-    btn.style.animationDelay = (i * 50) + 'ms';
-    btn.innerHTML = `<span style="margin-left:5px">${q.icon}</span>${q.text}`;
-    btn.onclick = () => {
-      c.innerHTML = '';
-      submitMessage(q.text);
-    };
-    c.appendChild(btn);
+  QUICK_Q.forEach((item, i) => {
+    const b = document.createElement('button');
+    b.className = 'copt';
+    b.style.animationDelay = (i * 50) + 'ms';
+    b.innerHTML = '<span style="margin-left:5px">' + item.icon + '</span>' + item.q;
+    b.onclick = () => { c.innerHTML = ''; submitMsg(item.q); };
+    c.appendChild(b);
   });
 }
 
 function handleChatKey(e) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    sendAIMsg();
-  }
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendAIMsg(); }
 }
 
 function sendAIMsg() {
   const inp = document.getElementById('chatInput');
-  const text = inp.value.trim();
-  if (!text || isStreaming) return;
+  const txt = inp.value.trim();
+  if (!txt || chatBusy) return;
   inp.value = '';
   inp.style.height = 'auto';
   document.getElementById('chatOpts').innerHTML = '';
-  submitMessage(text);
+  submitMsg(txt);
 }
 
-async function submitMessage(text) {
-  if (isStreaming) return;
-  isStreaming = true;
+async function submitMsg(txt) {
+  if (chatBusy) return;
+  chatBusy = true;
 
-  // Add user message
-  addUserMsg(text);
-  chatHistory.push({ role: 'user', content: text });
+  addUserMsg(txt);
+  chatHist.push({ role: 'user', content: txt });
 
-  // Show typing indicator
-  const typingEl = addTypingIndicator();
-
-  // Disable send button
   const sendBtn = document.getElementById('chatSendBtn');
-  sendBtn.classList.add('loading');
+  if (sendBtn) sendBtn.classList.add('loading');
+
+  const typingRow = addTypingRow();
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const res = await fetch('https://frenkel-chat.yf954.workers.dev/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 600,
-        system: SYSTEM_PROMPT,
-        messages: chatHistory
-      })
+      body: JSON.stringify({ messages: chatHist })
     });
 
-    typingEl.remove();
+    typingRow.remove();
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.error?.message || 'שגיאת שרת');
-    }
+    if (!res.ok) throw new Error('server error');
 
-    const data = await response.json();
-    const reply = data.content?.[0]?.text || 'מצטער, לא הצלחתי לעבד את הבקשה.';
-    chatHistory.push({ role: 'assistant', content: reply });
+    const data = await res.json();
+    const reply = data.reply || 'מצטער, נתקלתי בבעיה. נסה שוב או התקשר: 02-595-4954';
+    chatHist.push({ role: 'assistant', content: reply });
     addBotMsg(reply);
-
-    // Show quick questions again after reply
-    setTimeout(showQuickQuestions, 800);
+    setTimeout(showQuickQ, 700);
 
   } catch (err) {
-    typingEl.remove();
-    addErrorMsg('אירעה שגיאה בחיבור. אפשר לפנות ישירות:\n📞 02-595-4954\n💬 וואטסאפ');
-    console.error('Chat error:', err);
+    typingRow.remove();
+    addBotMsg('מצטער, נתקלתי בבעיה טכנית 🙏\nפנה אלינו ישירות:\n📞 02-595-4954\n💬 וואטסאפ');
   }
 
-  isStreaming = false;
-  sendBtn.classList.remove('loading');
+  chatBusy = false;
+  if (sendBtn) sendBtn.classList.remove('loading');
 }
 
-function addUserMsg(text) {
+function addTypingRow() {
   const msgs = document.getElementById('chatMsgs');
-  const row = document.createElement('div');
-  row.className = 'msg-row user-row';
-  row.innerHTML = `
-    <div class="msg-col">
-      <div class="msg user" style="white-space:pre-line">${escapeHtml(text)}</div>
-      <span class="msg-time" style="padding-left:4px">${getTime()}</span>
-    </div>`;
-  msgs.appendChild(row);
-  msgs.scrollTop = msgs.scrollHeight;
-}
-
-function addBotMsg(text) {
-  const msgs = document.getElementById('chatMsgs');
+  const logoSrc = getLogo();
   const row = document.createElement('div');
   row.className = 'msg-row';
-  const logoSrc = document.querySelector('#chatWin .chav img')?.src || '';
-  row.innerHTML = `
-    <img class="bot-av" src="${logoSrc}" alt="">
-    <div class="msg-col">
-      <div class="msg bot" style="white-space:pre-line">${escapeHtml(text)}</div>
-      <span class="msg-time" style="padding-right:4px">${getTime()}</span>
-    </div>`;
-  msgs.appendChild(row);
-  msgs.scrollTop = msgs.scrollHeight;
-}
-
-function addErrorMsg(text) {
-  const msgs = document.getElementById('chatMsgs');
-  const div = document.createElement('div');
-  div.className = 'msg bot error';
-  div.style.whiteSpace = 'pre-line';
-  div.textContent = text;
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
-}
-
-function addTypingIndicator() {
-  const msgs = document.getElementById('chatMsgs');
-  const row = document.createElement('div');
-  row.className = 'msg-row';
-  const logoSrc = document.querySelector('#chatWin .chav img')?.src || '';
-  row.innerHTML = `
-    <img class="bot-av" src="${logoSrc}" alt="">
-    <div class="typing">
-      <span></span><span></span><span></span>
-    </div>`;
+  row.innerHTML = '<img class="bot-av" src="' + logoSrc + '" alt=""><div class="typing"><span></span><span></span><span></span></div>';
   msgs.appendChild(row);
   msgs.scrollTop = msgs.scrollHeight;
   return row;
 }
 
-function escapeHtml(text) {
-  return text
-    .replace(/&/g,'&amp;')
-    .replace(/</g,'&lt;')
-    .replace(/>/g,'&gt;')
-    .replace(/"/g,'&quot;');
+function addUserMsg(txt) {
+  const msgs = document.getElementById('chatMsgs');
+  const row = document.createElement('div');
+  row.className = 'msg-row user-row';
+  row.innerHTML = '<div class="msg-col"><div class="msg user" style="white-space:pre-line">' + esc(txt) + '</div><span class="msg-time" style="padding-left:4px">' + now() + '</span></div>';
+  msgs.appendChild(row);
+  msgs.scrollTop = msgs.scrollHeight;
 }
 
-function getTime() {
-  return new Date().toLocaleTimeString('he-IL', { hour:'2-digit', minute:'2-digit' });
+function addBotMsg(txt) {
+  const msgs = document.getElementById('chatMsgs');
+  const row = document.createElement('div');
+  row.className = 'msg-row';
+  row.innerHTML = '<img class="bot-av" src="' + getLogo() + '" alt=""><div class="msg-col"><div class="msg bot" style="white-space:pre-line">' + esc(txt) + '</div><span class="msg-time" style="padding-right:4px">' + now() + '</span></div>';
+  msgs.appendChild(row);
+  msgs.scrollTop = msgs.scrollHeight;
 }
+
+function getLogo() {
+  const img = document.querySelector('#chatWin .chav img');
+  return img ? img.src : '';
+}
+function esc(t) { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function now() { return new Date().toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'}); }
 
 
 /* Enter key on calc */
