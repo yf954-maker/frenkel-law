@@ -2509,43 +2509,19 @@ async function submitMsg(txt) {
   const typingRow = addTypingRow();
 
   try {
-    // Direct Gemini API call
-    const GEMINI_KEY = 'AIzaSyBA9_Di2367DLq9XCsEcTbBZweMWCOddP0';
-    
-    const contents = [
-      { role: 'user', parts: [{ text: `אתה עוזר AI מקצועי של משרד יצחק פרנקל עו"ד המתמחה במיסוי מקרקעין בישראל.
-פרטי המשרד: נהר הירדן 1 בית שמש, טלפון 02-595-4954, שעות א-ה 09:00-17:00.
-תחומי התמחות: מס שבח, מס רכישה, היטל השבחה, עררים, תמ"א ופינוי בינוי.
-ענה בעברית בלבד, מקצועי וידידותי, תשובות קצרות 4-5 משפטים.
-בסוף כל תשובה: לייעוץ אישי התקשרו 02-595-4954.
-
-הבנת?` }] },
-      { role: 'model', parts: [{ text: 'כן, הבנתי. אני עוזר AI של משרד יצחק פרנקל עו"ד ואענה בעברית על שאלות מיסוי מקרקעין.' }] },
-      ...chatHist.slice(-8).map(m => ({
-        role: m.role === 'user' ? 'user' : 'model',
-        parts: [{ text: m.content }]
-      }))
-    ];
-
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents,
-          generationConfig: { maxOutputTokens: 500, temperature: 0.7 }
-        })
-      }
-    );
+    // Google Apps Script proxy
+    const res = await fetch('https://script.google.com/macros/s/AKfycbziT_-TXDrHptLaRJrRbUntie9jcFj9RKUz261Wuy5IyBLSHVxYeJ-sk3-WNqZiB8LM/exec', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: chatHist })
+    });
 
     typingRow.remove();
 
-    if (!res.ok) throw new Error('Gemini error');
+    if (!res.ok) throw new Error('server error');
 
     const data = await res.json();
-    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text
-      || 'מצטער, נתקלתי בבעיה. התקשר: 02-595-4954';
+    const reply = data.reply || 'מצטער, נתקלתי בבעיה. התקשר: 02-595-4954';
     chatHist.push({ role: 'assistant', content: reply });
     addBotMsg(reply);
     setTimeout(showQuickQ, 700);
