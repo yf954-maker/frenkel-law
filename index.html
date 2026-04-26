@@ -2509,19 +2509,33 @@ async function submitMsg(txt) {
   const typingRow = addTypingRow();
 
   try {
-    // Google Apps Script proxy
-    const res = await fetch('https://script.google.com/macros/s/AKfycbziT_-TXDrHptLaRJrRbUntie9jcFj9RKUz261Wuy5IyBLSHVxYeJ-sk3-WNqZiB8LM/exec', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: chatHist })
+    // Google Apps Script via JSONP (bypasses CORS)
+    const reply = await new Promise((resolve) => {
+      const callbackName = 'cb_' + Date.now();
+      const script = document.createElement('script');
+      const msg = encodeURIComponent(JSON.stringify(chatHist.slice(-8)));
+      script.src = 'https://script.google.com/macros/s/AKfycbziT_-TXDrHptLaRJrRbUntie9jcFj9RKUz261Wuy5IyBLSHVxYeJ-sk3-WNqZiB8LM/exec?callback=' + callbackName + '&messages=' + msg;
+      window[callbackName] = (data) => {
+        delete window[callbackName];
+        document.head.removeChild(script);
+        resolve(data.reply || 'מצטער, נתקלתי בבעיה.');
+      };
+      script.onerror = () => {
+        delete window[callbackName];
+        document.head.removeChild(script);
+        resolve('מצטער, נתקלתי בבעיה. פנה אלינו: 02-595-4954');
+      };
+      setTimeout(() => {
+        if (window[callbackName]) {
+          delete window[callbackName];
+          try { document.head.removeChild(script); } catch(e) {}
+          resolve('מצטער, לא הגיעה תשובה. פנה אלינו: 02-595-4954');
+        }
+      }, 15000);
+      document.head.appendChild(script);
     });
 
     typingRow.remove();
-
-    if (!res.ok) throw new Error('server error');
-
-    const data = await res.json();
-    const reply = data.reply || 'מצטער, נתקלתי בבעיה. התקשר: 02-595-4954';
     chatHist.push({ role: 'assistant', content: reply });
     addBotMsg(reply);
     setTimeout(showQuickQ, 700);
